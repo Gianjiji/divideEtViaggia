@@ -1,0 +1,44 @@
+[Unit]
+Description=Divide et viaggia - bot Telegram per dividere le spese di un viaggio in auto
+Documentation=file:/opt/divideEtViaggia/README.md
+# Il bot fa polling verso api.telegram.org: aspetta che la rete sia pronta.
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Di default il servizio gira come root. Per farlo girare con un utente
+# dedicato, crea l'utente e togli il commento alle due righe seguenti:
+#   useradd --system --home-dir /opt/divideEtViaggia \
+#           --shell /usr/sbin/nologin divideetviaggia
+#   chown -R divideetviaggia:divideetviaggia /opt/divideEtViaggia
+# Attenzione: se le abiliti senza creare l'utente, il servizio muore con
+# status=217/USER.
+#User=divideetviaggia
+#Group=divideetviaggia
+WorkingDirectory=/opt/divideEtViaggia
+ExecStart=/opt/divideEtViaggia/.venv/bin/python /opt/divideEtViaggia/bot.py
+
+# Log riga per riga nel journal, senza attese di buffer.
+Environment=PYTHONUNBUFFERED=1
+
+# Se il bot muore (rete assente, riavvio di Telegram, eccezione) riparte da solo.
+Restart=always
+RestartSec=10
+
+# --- Irrobustimento -------------------------------------------------------
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+# Unica cartella scrivibile: quella dei coefficienti salvati per chat.
+ReadWritePaths=/opt/divideEtViaggia/dati
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+
+[Install]
+WantedBy=multi-user.target

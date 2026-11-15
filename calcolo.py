@@ -27,7 +27,10 @@ Questo modulo non dipende da Telegram: e' logica pura e testabile.
 
 from __future__ import annotations
 
+import math
+import re
 from dataclasses import dataclass
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Iterable, Sequence
 
 # --------------------------------------------------------------------------- #
@@ -80,6 +83,30 @@ class InputNonValido(ValueError):
 # Parsing e validazione degli input (formato italiano)
 # --------------------------------------------------------------------------- #
 
+_NUMERO_SEMPLICE = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)")
+_MIGLIAIA_RIPETUTE = re.compile(r"[+-]?[0-9]{1,3}(?:\.[0-9]{3}){2,}")
+# Un solo punto seguito da esattamente tre cifre, senza virgola: "1.234".
+_MIGLIAIA_O_DECIMALI = re.compile(r"[+-]?[0-9]{1,3}\.[0-9]{3}")
+
+
+def _rifiuta_se_ambiguo(testo: str, cosa: str) -> None:
+    """Ferma un numero come ``1.234`` dove tre decimali non hanno senso.
+
+    All'italiana e' milleduecentotrentaquattro, ma chi scrive il punto come
+    separatore decimale (succede spesso dalla tastiera del telefono) intende
+    uno virgola due. Scegliere in silenzio vuol dire sbagliare di mille volte
+    un importo o una distanza: meglio chiedere di riscriverlo.
+    """
+    pulito = re.sub(r"(?i)€|eur|km|[\s\u00a0]", "", str(testo))
+    if _MIGLIAIA_O_DECIMALI.fullmatch(pulito):
+        intero = pulito.replace(".", "")
+        raise InputNonValido(
+            f"«{str(testo).strip()}» si puo' leggere in due modi. "
+            f"Se intendi {intero} {cosa} scrivi `{intero}`; "
+            f"se intendi un numero con i decimali usa la virgola, es. `{pulito.replace('.', ',')}`."
+        )
+
+
 def parse_decimale(testo: str) -> float:
     """Converte in ``float`` un numero scritto all'italiana.
 
@@ -113,8 +140,17 @@ def parse_decimale(testo: str) -> float:
             pulito = pulito.replace(".", "").replace(",", ".")
         else:  # Es. "1,234.56": la virgola e' separatore delle migliaia.
             pulito = pulito.replace(",", "")
+    elif _MIGLIAIA_RIPETUTE.fullmatch(pulito):
+        # Es. "1.234.567": piu' punti, tutti a gruppi di tre: sono migliaia.
+        pulito = pulito.replace(".", "")
     else:
         pulito = pulito.replace(",", ".")
+
+    # float() da solo accetta molto piu' di un numero scritto da una persona:
+    # "1_000", "1e3", "infinity", cifre di altri alfabeti. Qui passano soltanto
+    # cifre ASCII con al massimo un separatore decimale.
+    if not _NUMERO_SEMPLICE.fullmatch(pulito):
+        raise InputNonValido(f"«{grezzo}» non mi sembra un numero.")
 
     try:
         valore = float(pulito)
@@ -130,6 +166,7 @@ def parse_decimale(testo: str) -> float:
 def parse_importo(testo: str) -> float:
     """Legge un importo in euro: numero valido, non negativo."""
     valore = parse_decimale(testo)
+    _rifiuta_se_ambiguo(testo, "euro")
     if valore < 0:
         raise InputNonValido("L'importo non puo' essere negativo.")
     if valore > IMPORTO_MASSIMO:
@@ -140,6 +177,7 @@ def parse_importo(testo: str) -> float:
 def parse_distanza(testo: str) -> float:
     """Legge una distanza in km: numero valido e strettamente positivo."""
     valore = parse_decimale(testo)
+    _rifiuta_se_ambiguo(testo, "km")
     if valore <= 0:
         raise InputNonValido("La distanza deve essere maggiore di zero.")
     if valore > DISTANZA_MASSIMA_KM:
@@ -280,8 +318,20 @@ def litri_stimati(distanza_km: float, consumo_l_100km: float) -> float:
 
 
 def arrotonda(valore: float) -> float:
-    """Arrotonda un importo a 2 decimali."""
-    return round(valore + 0.0, 2)
+    """Arrotonda un importo a 2 decimali, con il mezzo centesimo per eccesso.
+
+    ``round(2.675, 2)`` da' 2.67: il numero e' memorizzato in binario come
+    2.67499999..., e Python arrotonda quello. Per dei soldi e' la risposta
+    sbagliata. Qui il valore viene prima ripulito dal rumore binario (nono
+    decimale), poi arrotondato in base dieci con la regola che tutti si
+    aspettano: 2,675 diventa 2,68.
+    """
+    if not math.isfinite(valore):
+        return valore
+    centesimi = Decimal(repr(round(valore, 9))).quantize(
+        Decimal("0.01"), rounding=ROUND_HALF_UP
+    )
+    return float(centesimi) + 0.0
 
 
 # --------------------------------------------------------------------------- #

@@ -1035,8 +1035,14 @@ async def gestore_errori(update: object, context: ContextTypes.DEFAULT_TYPE) -> 
 # Avvio
 # --------------------------------------------------------------------------- #
 
-def costruisci_applicazione(token: str) -> Application:
-    app = Application.builder().token(token).build()
+def costruisci_applicazione(token: str, builder=None) -> Application:
+    """Monta l'applicazione con tutti i gestori.
+
+    ``builder`` permette di fornire un ``ApplicationBuilder`` gia' configurato:
+    serve ai test, che sostituiscono le chiamate di rete verso Telegram con
+    risposte finte. In produzione resta ``None``.
+    """
+    app = (builder or Application.builder()).token(token).build()
 
     testo = filters.TEXT & ~filters.COMMAND
 

@@ -286,6 +286,17 @@ separatore delle migliaia: `35,58`, `35.58`, `1.234,56`, `480 km`, `85,00 €`.
 Valori negativi, non numerici o fuori scala vengono rifiutati con un messaggio
 gentile e la richiesta di reinserire. Il numero minimo di partecipanti è 2.
 
+Due casi particolari:
+
+- **`1.234` per un importo o una distanza** si può leggere come milleduecento
+  (all'italiana) o come uno virgola due (punto decimale, tipico della tastiera
+  del telefono). Il bot non sceglie: chiede di riscriverlo come `1234` oppure
+  `1,234`. Per prezzo al litro, consumo e coefficienti, dove tre decimali sono
+  normali, `1.789` resta 1,789.
+- **Gli importi si arrotondano al centesimo con il mezzo centesimo per
+  eccesso** (2,675 € diventa 2,68 €), non con l'arrotondamento binario di
+  Python che darebbe 2,67.
+
 ---
 
 ## Struttura del progetto
@@ -298,13 +309,16 @@ calcolaCosti/
 ├── storage.py           # persistenza JSON delle preferenze, per chat_id
 ├── messaggi.py          # testi del bot e formattazione in stile italiano
 ├── requirements.txt
-├── requirements-dev.txt # requirements + pytest
+├── requirements-dev.txt # requirements + pytest e pytest-asyncio
 ├── .env.example
 ├── pytest.ini
 ├── dati/                # file JSON dei coefficienti (creato all'occorrenza)
 └── tests/
+    ├── conftest.py            # Telegram finto + applicazione vera, per i flussi
+    ├── test_bot_flussi.py     # le conversazioni, recitate dall'inizio alla fine
     ├── test_calcolo.py
     ├── test_messaggi.py
+    ├── test_numeri_e_carta.py # arrotondamento, numeri ambigui, carta d'imbarco
     ├── test_percorso.py
     └── test_storage.py
 ```
@@ -327,6 +341,14 @@ raccolte e costi, il
 parsing dei numeri in formato italiano, la persistenza dei coefficienti, la
 formattazione dei testi e il parsing delle risposte dei servizi di mappe.
 La suite non fa chiamate di rete: usa risposte reali salvate nei test.
+
+I flussi di conversazione (`test_bot_flussi.py`) girano sull'applicazione vera,
+con gli stessi `ConversationHandler` di produzione: al posto della rete c'è un
+Telegram finto che registra ogni messaggio inviato. Ogni test recita una chat
+(comandi, bottoni, risposte) e controlla ciò che l'utente vedrebbe: il conto
+con le cifre ricalcolate a mano, le domande ripetute dopo una risposta
+sbagliata, `/annulla` a metà, i bottoni forgiati o scaduti, due chat in
+parallelo, la carta d'imbarco con nomi che contengono caratteri del Markdown.
 
 ---
 

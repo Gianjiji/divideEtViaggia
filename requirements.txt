@@ -1,2 +1,3 @@
 python-telegram-bot>=21.0,<22
+httpx>=0.27                # usato direttamente da percorso.py (geocodifica e distanze)
 python-dotenv>=1.0.0

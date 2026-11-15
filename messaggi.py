@@ -582,6 +582,16 @@ CARTA_PIEDE = (
 
 
 def _carta_riga(testo: str = "") -> str:
+    """Una riga della carta, sempre larga uguale e sempre su una riga sola.
+
+    La carta e' un blocco di codice: nome e indirizzo arrivano dall'utente e un
+    loro backtick chiuderebbe il blocco in anticipo, lasciando il Markdown
+    spaiato (Telegram rifiuta l'intero messaggio). Un a-capo romperebbe la
+    cornice. Entrambi vengono sostituiti qui, dove passa ogni riga.
+    """
+    testo = testo.replace("`", "'")
+    testo = " ".join(testo.splitlines()) if "\n" in testo or "\r" in testo else testo
+    testo = testo.replace("\t", " ")
     return "|" + testo.ljust(_CARTA)[:_CARTA] + "|"
 
 
